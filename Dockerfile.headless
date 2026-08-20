@@ -1,0 +1,31 @@
+FROM oven/bun:1-slim AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+RUN git clone --single-branch -b gamenight https://github.com/cboyd10/Engine-TS engine \
+    && git clone --single-branch -b gamenight https://github.com/cboyd10/Content content \
+    && git clone --single-branch -b gamenight https://github.com/cboyd10/Client-TS webclient
+
+WORKDIR /build/webclient
+RUN bun install
+RUN bun run build
+RUN cp out/client.js /build/engine/public/client/client.js
+
+WORKDIR /build/engine
+RUN bun install
+RUN bun run tools/pack/Build.ts
+
+FROM node:lts-slim
+WORKDIR /opt/server
+COPY --from=build /build/engine ./
+RUN mkdir -p data/config \
+    && printf '{"node":{"production":true}}' > data/config/world.json \
+    && npm install --omit=dev --ignore-scripts \
+    && npm install tsx \
+    && useradd -m runner && chown -R runner:runner /opt/server
+USER runner
+
+ENTRYPOINT ["npx", "tsx"]
+CMD ["src/app.ts"]
