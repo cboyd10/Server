@@ -15,13 +15,17 @@ RUN cp out/client.js /build/engine/public/client/client.js
 
 WORKDIR /build/engine
 RUN bun install
-RUN bun run build
+RUN bun run tools/pack/Build.ts
 
-FROM oven/bun:1-slim
+FROM node:lts-slim
 WORKDIR /opt/server
 COPY --from=build /build/engine ./
-RUN useradd -m runner && chown -R runner:runner /opt/server
+RUN mkdir -p data/config \
+    && printf '{"node":{"production":true}}' > data/config/world.json \
+    && npm install --omit=dev --ignore-scripts \
+    && npm install tsx \
+    && useradd -m runner && chown -R runner:runner /opt/server
 USER runner
 
-ENTRYPOINT ["bun", "run"]
+ENTRYPOINT ["npx", "tsx"]
 CMD ["src/app.ts"]
